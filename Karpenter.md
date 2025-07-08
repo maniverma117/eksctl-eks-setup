@@ -1,13 +1,9 @@
 # Installing **Karpenter** on an **Amazon EKS cluster**
 
----
-
 ```markdown
 # Karpenter Installation Guide for Amazon EKS
 
 This document outlines the steps to install and configure [Karpenter](https://karpenter.sh/) to automatically scale nodes in your Amazon EKS cluster.
-
----
 
 ## 📋 Prerequisites
 
