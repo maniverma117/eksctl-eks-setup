@@ -1,4 +1,4 @@
-# Installing **Karpenter** on an **Amazon EKS cluster**
+# Installing **Karpenter** on **EKS cluster**
 
 ```markdown
 # Karpenter Installation Guide for Amazon EKS
