@@ -121,7 +121,3 @@ helm install test eshopbox/eshopbox
 * Helm Docs: [https://helm.sh/docs](https://helm.sh/docs)
 * AWS CLI Docs: [https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
 
-```
-
-Let me know if you'd like to add instructions for **private repo access with IAM roles**, or include a shell script to automate the whole setup.
-```
