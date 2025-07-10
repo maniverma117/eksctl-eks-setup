@@ -18,10 +18,10 @@ Make sure the credentials used have access to the target S3 bucket.
 
 ### 2. S3 Bucket
 
-Create a dedicated S3 bucket (e.g., `eshopbox-helm`) to serve as the central Helm chart repository:
+Create a dedicated S3 bucket (e.g., `velocis-helm`) to serve as the central Helm chart repository:
 
 ```bash
-aws s3 mb s3://eshopbox-helm
+aws s3 mb s3://velocis-helm
 ```
 
 ### 3. S3 Bucket Policy (Optional: Public Read Access)
@@ -36,7 +36,7 @@ To allow public access to the chart files (if required):
     "Effect":"Allow",
     "Principal": "*",
     "Action":["s3:GetObject"],
-    "Resource":["arn:aws:s3:::eshopbox-helm/*"]
+    "Resource":["arn:aws:s3:::velocis-helm/*"]
   }]
 }
 ```
@@ -44,7 +44,7 @@ To allow public access to the chart files (if required):
 Apply the policy:
 
 ```bash
-aws s3api put-bucket-policy --bucket eshopbox-helm --policy file://bucket-policy.json
+aws s3api put-bucket-policy --bucket velocis-helm --policy file://bucket-policy.json
 ```
 
 ---
@@ -60,25 +60,25 @@ helm plugin install https://github.com/hypnoglow/helm-s3.git
 ### 2. Initialize the Helm S3 Repository (only once)
 
 ```bash
-helm s3 init s3://eshopbox-helm
+helm s3 init s3://velocis-helm
 ```
 
 ### 3. Package Your Helm Chart
 
 ```bash
-helm package ./eshopbox
+helm package ./velocis
 ```
 
 ### 4. Add the S3 Repo Locally
 
 ```bash
-helm repo add eshopbox s3://eshopbox-helm
+helm repo add velocis s3://velocis-helm
 ```
 
 ### 5. Push Chart to S3
 
 ```bash
-helm s3 push eshopbox-<version>.tgz eshopbox
+helm s3 push velocis-<version>.tgz velocis
 ```
 
 > Replace `<version>` with your actual chart version.
@@ -96,13 +96,13 @@ helm repo update
 Dry run:
 
 ```bash
-helm install test eshopbox/eshopbox --dry-run
+helm install test velocis/velocis --dry-run
 ```
 
 Actual install:
 
 ```bash
-helm install test eshopbox/eshopbox
+helm install test velocis/velocis
 ```
 
 ---
