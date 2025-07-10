@@ -195,3 +195,209 @@ You should be authenticated as the assumed role and granted full admin access vi
 * `assume-role-policy.json`
 
 ---
+
+* **IAM setup for L2 and L1 roles**
+* **Kubernetes ClusterRoles and RoleBindings**
+* **`aws-auth` ConfigMap update**
+* **RBAC scoping (no delete for L2, read-only for L1)**
+
+## 5️⃣ Create IAM Roles for L2 and L1
+
+### 5.1 Create IAM Roles
+
+Repeat the same steps as Admin for the following:
+
+#### ➤ L2 Role: `EKSClusterL2Role`
+
+**Trust Policy (`trust-policy-l2.json`):**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::98xxxxxxxx245:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+````
+
+**IAM Permissions Policy (`eks-basic-access-l2.json`):**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "eks:ListClusters",
+        "eks:DescribeCluster"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+#### ➤ L1 Role: `EKSClusterL1Role`
+
+Use the same trust and permission policy as L2.
+
+Then attach to appropriate IAM groups:
+
+```bash
+aws iam create-group --group-name EKS-L2
+aws iam create-group --group-name EKS-L1
+
+aws iam put-group-policy \
+  --group-name EKS-L2 \
+  --policy-name AssumeEKSClusterL2Role \
+  --policy-document file://assume-role-policy-l2.json
+
+aws iam put-group-policy \
+  --group-name EKS-L1 \
+  --policy-name AssumeEKSClusterL1Role \
+  --policy-document file://assume-role-policy-l1.json
+```
+
+---
+
+## 6️⃣ Configure Kubernetes RBAC for L2 and L1
+
+### 6.1 Create ClusterRole for L2 (No Delete Access)
+
+```yaml
+# clusterrole-l2.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: eks-l2-clusterrole
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+```
+
+### 6.2 Create ClusterRoleBinding for L2
+
+```yaml
+# clusterrolebinding-l2.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: eks-l2-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: eks-l2-clusterrole
+subjects:
+- kind: User
+  name: l2-user
+  apiGroup: rbac.authorization.k8s.io
+```
+
+### 6.3 Create ClusterRole for L1 (Read-Only)
+
+```yaml
+# clusterrole-l1.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: eks-l1-clusterrole
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+```
+
+### 6.4 Create ClusterRoleBinding for L1
+
+```yaml
+# clusterrolebinding-l1.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: eks-l1-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: eks-l1-clusterrole
+subjects:
+- kind: User
+  name: l1-user
+  apiGroup: rbac.authorization.k8s.io
+```
+
+> Apply these:
+
+```bash
+kubectl apply -f clusterrole-l2.yaml
+kubectl apply -f clusterrolebinding-l2.yaml
+kubectl apply -f clusterrole-l1.yaml
+kubectl apply -f clusterrolebinding-l1.yaml
+```
+
+---
+
+## 7️⃣ Update `aws-auth` ConfigMap
+
+```bash
+kubectl edit -n kube-system configmap/aws-auth
+```
+
+Add entries under `mapRoles`:
+
+```yaml
+mapRoles: |
+  - rolearn: arn:aws:iam::98xxxxxxxx245:role/EKSAdminRole
+    username: admin
+    groups:
+      - system:masters
+
+  - rolearn: arn:aws:iam::98xxxxxxxx245:role/EKSClusterL2Role
+    username: l2-user
+    groups:
+      - eks-l2-group
+
+  - rolearn: arn:aws:iam::98xxxxxxxx245:role/EKSClusterL1Role
+    username: l1-user
+    groups:
+      - eks-l1-group
+```
+
+> These `groups` map to the Kubernetes groups referenced in the RBAC bindings (`eks-l2-group`, `eks-l1-group`).
+
+---
+
+## ✅ Summary of Access Levels
+
+| Role             | IAM Group | Access Level        | Kubernetes RBAC Group | ClusterRole        |
+| ---------------- | --------- | ------------------- | --------------------- | ------------------ |
+| EKSAdminRole     | EKS-Admin | Full admin          | system\:masters       | cluster-admin      |
+| EKSClusterL2Role | EKS-L2    | Read/write (no del) | eks-l2-group          | eks-l2-clusterrole |
+| EKSClusterL1Role | EKS-L1    | Read-only           | eks-l1-group          | eks-l1-clusterrole |
+
+---
+
+## 📁 Additional Files
+
+* `clusterrole-l2.yaml`
+* `clusterrolebinding-l2.yaml`
+* `clusterrole-l1.yaml`
+* `clusterrolebinding-l1.yaml`
+* `trust-policy-l2.json`
+* `trust-policy-l1.json`
+* `assume-role-policy-l2.json`
+* `assume-role-policy-l1.json`
+
+---
