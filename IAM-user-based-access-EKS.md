@@ -42,7 +42,7 @@ aws iam add-user-to-group --user-name tes-eks-user --group-name EKS-Admin
     {
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::989064034245:root"
+        "AWS": "arn:aws:iam::98xxxxxxx245:root"
       },
       "Action": "sts:AssumeRole"
     }
@@ -95,7 +95,7 @@ aws iam put-role-policy \
     {
       "Effect": "Allow",
       "Action": "sts:AssumeRole",
-      "Resource": "arn:aws:iam::989064034245:role/EKSAdminRole"
+      "Resource": "arn:aws:iam::989xxxxxxxxxx245:role/EKSAdminRole"
     }
   ]
 }
@@ -122,7 +122,7 @@ Add under `mapRoles`:
 
 ```yaml
 mapRoles: |
-  - rolearn: arn:aws:iam::989064034245:role/EKSAdminRole
+  - rolearn: arn:aws:iam::98xxxxxxxxx5:role/EKSAdminRole
     username: admin
     groups:
       - system:masters
@@ -148,7 +148,7 @@ Add to `~/.aws/config`:
 
 ```ini
 [profile test-asumerole-eks]
-role_arn = arn:aws:iam::989064034245:role/EKSAdminRole
+role_arn = arn:aws:iam::98xxxxxxxxx5:role/EKSAdminRole
 source_profile = test-user
 region = ap-south-1
 ```
@@ -195,12 +195,3 @@ You should be authenticated as the assumed role and granted full admin access vi
 * `assume-role-policy.json`
 
 ---
-
-Let me know if you'd like a version for Terraform or CloudFormation.
-
-```
-
----
-
-Would you like this as a downloadable `.zip` with the policy JSON files as well?
-```
