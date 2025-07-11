@@ -1,9 +1,7 @@
-````markdown
 # 🕹️ SQS Rate Limiting Patterns using EventBridge and Lambda
 
 This project demonstrates two common patterns to **control the rate of SQS usage** in AWS using EventBridge, Lambda, and reserved concurrency.
 
----
 
 ## 📦 Patterns Covered
 
