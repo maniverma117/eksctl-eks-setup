@@ -1,7 +1,3 @@
-Here’s a complete `README.md` file that includes both **Pattern A** and **Pattern B** for managing SQS rate limiting using **EventBridge**, **Lambda**, and **SQS**.
-
----
-
 ````markdown
 # 🕹️ SQS Rate Limiting Patterns using EventBridge and Lambda
 
