@@ -190,5 +190,4 @@ aws events delete-rule --name RateLimitScheduler
 
 Mani V — DevOps Engineer | AWS | Automation | RAG Systems
 
-```
 
