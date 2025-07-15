@@ -352,13 +352,13 @@ metadata:
   annotations:
     kubernetes.io/description: "Graviton EC2NodeClass for ARM-based Amazon Linux 2023 nodes"
 spec:
-  role: "KarpenterNodeRole-Non-Prod-EduNext"  # Replace with your actual cluster name or inject via env
+  role: "KarpenterNodeRolexxxxxxxxxxxxxxx"  # Replace with your karpenter node role
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "Non-Prod-EduNext"  # Replace with your cluster name
+        karpenter.sh/discovery: "Non-Prod-velocis"  # Replace with your cluster name
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "Non-Prod-EduNext"  # Replace with your cluster name
+        karpenter.sh/discovery: "Non-Prod-velocis"  # Replace with your cluster name
   amiSelectorTerms:
     - id: ami-02f67279123ee4a30  # Amazon Linux 2023 (supports arm64 & x86_64)
   amiFamily: AL2023
