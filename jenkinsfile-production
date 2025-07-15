@@ -1,0 +1,184 @@
+pipeline {
+
+    environment {
+        AWS_DEFAULT_REGION = "ap-south-1"
+        K8S_CONTEXT = "xxxxxxxxxxxxxxxxxxx"
+        APP_NAME = "your-app-name" // Must match AWS Secret and Helm values filename
+        NAMESPACE = "your-k8s-namespace"
+        ECR_REPO_URL = "xxxxxxxxxxxxxxx" // e.g., 1234567890.dkr.ecr.ap-south-1.amazonaws.com/prod-your-app-name
+        GITHUB_REPO = "git@bitbucket.org:your-org/${APP_NAME}.git"
+        GITHUB_REPO_BRANCH = "master"
+        SLACK_WEBHOOK = "https://hooks.slack.com/services/xxx/yyy/zzz"
+
+        AWS_SECRET_NAME = "${APP_NAME}"
+        K8S_SECRET_NAME = "${APP_NAME}"
+    }
+
+    agent any
+
+    stages {
+
+        stage('Checkout Code') {
+            steps {
+                script {
+                    cleanWs()
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "${GITHUB_REPO_BRANCH}"]],
+                        userRemoteConfigs: [[
+                            credentialsId: 'Bitbucket',
+                            url: "${GITHUB_REPO}"
+                        ]]
+                    ])
+                }
+            }
+        }
+
+        stage('Build and Push to ECR') {
+            steps {
+                script {
+                    // Write Dockerfile
+                    sh """
+                    cat <<EOF > Dockerfile
+                    FROM maven:3.9.6-amazoncorretto-21 AS builder
+                    WORKDIR /app
+                    COPY . .
+                    RUN mvn clean package -DskipTests
+
+                    FROM amazoncorretto:21-alpine
+                    WORKDIR /app
+                    ENV TZ="Asia/Kolkata"
+                    RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+                    COPY --from=builder /app/target/${APP_NAME}-0.0.1-SNAPSHOT.jar app.jar
+                    RUN chown -R appuser:appgroup /app
+                    USER appuser
+                    EXPOSE 8080
+                    CMD ["java", "-jar", "app.jar", "--server.address=0.0.0.0", "--server.port=8080"]
+                    EOF
+                    """
+
+                    // ECR Login
+                    sh '''
+                    aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin ${ECR_REPO_URL}
+                    '''
+
+                    // Set image tag
+                    GIT_COMMIT_ID = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    TIMESTAMP = sh(script: 'date +%Y%m%d%H%M%S', returnStdout: true).trim()
+                    env.IMAGETAG = "${GIT_COMMIT_ID}-${TIMESTAMP}"
+
+                    currentBuild.displayName = "App=[${APP_NAME}] Commit=[${GIT_COMMIT_ID}]"
+                    currentBuild.description = "Built App=[${APP_NAME}], Branch=[${GITHUB_REPO_BRANCH}]"
+
+                    // Build and push Docker image
+                    sh """
+                    docker run --rm --privileged tonistiigi/binfmt --install all
+                    docker build --platform=linux/arm64 -t ${ECR_REPO_URL}:${IMAGETAG} .
+                    docker push ${ECR_REPO_URL}:${IMAGETAG}
+                    """
+                }
+            }
+
+            post {
+                success {
+                    sh """
+                    curl -X POST -H 'Content-type: application/json' --data '{
+                      "channel": "#prod-cicd-notification",
+                      "text": "*Build Success*\\n*App:* ${APP_NAME}\\n*Build:* #${BUILD_NUMBER}\\n*URL:* ${BUILD_URL}"
+                    }' ${SLACK_WEBHOOK}
+                    """
+                }
+
+                failure {
+                    sh """
+                    curl -X POST -H 'Content-type: application/json' --data '{
+                      "channel": "#prod-cicd-notification",
+                      "text": "*Build Failed*\\n*App:* ${APP_NAME}\\n*Build:* #${BUILD_NUMBER}\\n*URL:* ${BUILD_URL}"
+                    }' ${SLACK_WEBHOOK}
+                    """
+                }
+            }
+        }
+
+        stage('Fetch & Convert AWS Secret') {
+            steps {
+                script {
+                    def secretJson = sh(script: "aws secretsmanager get-secret-value --secret-id ${AWS_SECRET_NAME} --query SecretString --output text", returnStdout: true).trim()
+                    writeFile file: 'aws-secret.json', text: secretJson
+
+                    def parsed = readJSON file: 'aws-secret.json'
+                    def encodedMap = [:]
+                    parsed.each { key, value ->
+                        encodedMap[key] = value.bytes.encodeBase64().toString()
+                    }
+
+                    def yaml = """
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${K8S_SECRET_NAME}
+  namespace: ${NAMESPACE}
+type: Opaque
+data:
+"""
+                    encodedMap.each { k, v -> yaml += "  ${k}: ${v}\n" }
+
+                    writeFile file: 'k8s-secret.yaml', text: yaml
+                }
+            }
+        }
+
+        stage('Apply Secret to EKS') {
+            steps {
+                sh "kubectl config use-context ${K8S_CONTEXT}"
+                sh "kubectl apply -f k8s-secret.yaml -n ${NAMESPACE}"
+            }
+        }
+
+        stage('Deploy via Helm') {
+            steps {
+                script {
+                    sh 'mkdir -p deploy'
+                    dir('deploy') {
+                        sh "kubectl config use-context ${K8S_CONTEXT}"
+
+                        sh """
+                        git clone -b Helm-Chart git@github.com:Eshopbox-Enginnering/DevOps-Velocis.git
+                        cd DevOps-Velocis/Prod
+                        helm upgrade --install ${APP_NAME} -f ${APP_NAME}-values.yaml --set image.tag=${IMAGETAG} eshopbox/eshopboxt -n ${NAMESPACE} --wait
+                        """
+
+                        sh "kubectl get svc,deploy,po -n ${NAMESPACE}"
+                        sh "kubectl get events -n ${NAMESPACE} --sort-by=.metadata.creationTimestamp | grep -vE 'Pulling|Pulled|Created|Started' | tail"
+                    }
+                }
+            }
+
+            post {
+                success {
+                    sh """
+                    curl -X POST -H 'Content-type: application/json' --data '{
+                      "channel": "#prod-cicd-notification",
+                      "text": "*Deploy Success*\\n*App:* ${APP_NAME}\\n*Build:* #${BUILD_NUMBER}\\n*URL:* ${BUILD_URL}"
+                    }' ${SLACK_WEBHOOK}
+                    """
+                }
+
+                failure {
+                    sh """
+                    curl -X POST -H 'Content-type: application/json' --data '{
+                      "channel": "#prod-cicd-notification",
+                      "text": "*Deploy Failed*\\n*App:* ${APP_NAME}\\n*Build:* #${BUILD_NUMBER}\\n*URL:* ${BUILD_URL}"
+                    }' ${SLACK_WEBHOOK}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
