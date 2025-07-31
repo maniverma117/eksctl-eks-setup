@@ -7,6 +7,7 @@ pipeline {
         NAMESPACE = "your-k8s-namespace"
         ECR_REPO_URL = "xxxxxxxxxxxxxxx" // e.g., 1234567890.dkr.ecr.ap-south-1.amazonaws.com/prod-your-app-name
         GITHUB_REPO = "git@bitbucket.org:your-org/${APP_NAME}.git"
+        GITHUB_COMMON_REPO = "git@github.com:Eshopbox-Enginnering/common.git"
         GITHUB_REPO_BRANCH = "master"
         SLACK_WEBHOOK = "https://hooks.slack.com/services/xxx/yyy/zzz"
 
@@ -28,7 +29,7 @@ pipeline {
                         doGenerateSubmoduleConfigurations: false,
                         extensions: [
                             [$class: 'CloneOption', timeout: 120, noTags: false, shallow: false],
-                            [$class: 'SubmoduleOption', recursiveSubmodules: true, trackingSubmodules: true]
+                           // [$class: 'SubmoduleOption', recursiveSubmodules: true, trackingSubmodules: true]
                         ],
                         userRemoteConfigs: [[
                             credentialsId: 'Bitbucket',
@@ -37,6 +38,7 @@ pipeline {
                     ])
 
                     sh '''
+                    git submodule set-url common-entities ${GITHUB_COMMON_REPO}
                     git submodule sync
                     git submodule update --init --recursive --remote
                     '''
