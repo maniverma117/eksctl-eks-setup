@@ -277,20 +277,6 @@ https://aks-api-server                aks-prod    Successful
 
 ## 1.1 AppProject (`cmn`)
 
-Your `AppProject` is mostly correct, but **one critical fix is required**.
-
-### ❌ Problem
-
-```yaml
-clusterResourceWhitelist:
-- group: '*'
-  kind: cmn
-```
-
-`kind: cmn` is **invalid**.
-It must be a **Kubernetes resource kind**.
-
-### ✅ Correct AppProject (Recommended)
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -341,28 +327,45 @@ kind: Application
 metadata:
   name: studio-cmn-los
   namespace: argocd
-  labels:
-    app: studio-cmn-los
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  labels:
+    name: studio-cmn-los
 spec:
   project: cmn
-
   source:
     repoURL: git@bitbucket.org:kulizadev/baobab-helm-chart.git
     targetRevision: SIT
     path: finvolv
     helm:
       valueFiles:
-        - studio-cmn-los.yaml
-
+      - studio-cmn-los.yaml
+          
   destination:
+    # cluster API URL
     server: https://kubernetes.default.svc
+    # or cluster name
+    # name: in-cluster
+    # The namespace will only be set for namespace-scoped resources that have not set a value for .metadata.namespace
     namespace: cmn
 
-  syncPolicy:
-    syncOptions:
-      - CreateNamespace=true
+  # Sync policy
+#  syncPolicy:
+#    automated: # automated sync by default retries failed attempts 5 times with following delays between attempts ( 5s, 10s, 20s, 40s, 80s ); retry controlled using `retry` field.
+#      prune: true # Specifies if resources should be pruned during auto-syncing ( false by default ).
+#      selfHeal: true # Specifies if partial app sync should be executed when resources are changed only in target Kubernetes cluster and no git change detected ( false by default ).
+#      allowEmpty: false # Allows deleting all application resources during automatic syncing ( false by default ).
+#    syncOptions:     # Sync options which modifies sync behavior
+#    - Validate=false # disables resource validation (equivalent to 'kubectl apply --validate=false') ( true by default ).
+#    - CreateNamespace=true # Namespace Auto-Creation ensures that namespace specified as the application destination exists in the destination cluster.
+#    - PrunePropagationPolicy=foreground # Supported policies are background, foreground and orphan.
+#    - PruneLast=true # Allow the ability for resource pruning to happen as a final, implicit wave of a sync operation
+#    retry:
+#      limit: 5 # number of failed sync attempt retries; unlimited number of attempts if less than 0
+#      backoff:
+##        duration: 5s # the amount to back off. Default unit is seconds, but could also be a duration (e.g. "2m", "1h")
+##        factor: 2 # a factor to multiply the base duration after each failed retry
+
 ```
 
 > 💡 You can enable auto-sync later once validation is done.
