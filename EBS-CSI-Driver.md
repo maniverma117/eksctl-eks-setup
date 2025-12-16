@@ -21,6 +21,8 @@ eksctl utils associate-iam-oidc-provider \
   --region=ap-south-1 \
   --cluster=Prod-EduNext \
   --approve
+
+aws eks describe-cluster --name "Prod-EduNext" --query "cluster.identity.oidc.issuer" --output text 
 ```
 
 ---
