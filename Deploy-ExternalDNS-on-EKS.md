@@ -28,12 +28,17 @@ This guide helps you deploy to automatically manage Route53 DNS records for your
 Run the following command to install **ExternalDNS** via Helm:
 
 ```bash
-helm install edunext \
-  --set provider=aws \
-  --set aws.zoneType=public \
+helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/
+helm repo update
+
+helm upgrade --install edunext external-dns/external-dns \
+  --set provider.name=aws \
+  --set provider.aws.zoneType=public \
   --set txtOwnerId=Z0041638LDEUL5U7QZS2 \
-  --set domainFilters[0]=test-project.com \
-  oci://registry-1.docker.io/bitnamicharts/external-dns
+  --set domainFilters[0]=eshpbx.com \
+  --set env[0].name=AWS_REGION \
+  --set env[0].value=ap-south-1
+
 ```
 
 ---
