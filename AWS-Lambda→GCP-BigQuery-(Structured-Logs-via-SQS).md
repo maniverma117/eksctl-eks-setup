@@ -1,12 +1,4 @@
-Awesome 🎉 — since the pipeline is **working end-to-end**, here is a **clean, production-ready `README.md`** that documents **everything you actually did**, step by step, without theory fluff.
-
-You can drop this directly into your repo.
-
----
-
-# 📘 README.md
-
-## AWS Lambda → GCP BigQuery (Structured Logs via SQS)
+# AWS Lambda → GCP BigQuery (Structured Logs via SQS)
 
 This project implements a **cross-cloud logging pipeline** where:
 
