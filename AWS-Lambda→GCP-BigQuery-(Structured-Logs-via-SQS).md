@@ -1,1 +1,265 @@
+Awesome 🎉 — since the pipeline is **working end-to-end**, here is a **clean, production-ready `README.md`** that documents **everything you actually did**, step by step, without theory fluff.
 
+You can drop this directly into your repo.
+
+---
+
+# 📘 README.md
+
+## AWS Lambda → GCP BigQuery (Structured Logs via SQS)
+
+This project implements a **cross-cloud logging pipeline** where:
+
+**Java (Spring Boot)** → **AWS SQS** → **AWS Lambda (Python)** → **Google BigQuery**
+
+The design supports **dynamic JSON payloads** safely without schema breakage.
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+Spring Boot App
+   |
+   |  (JSON log message)
+   v
+AWS SQS
+   |
+   |  (batch event)
+   v
+AWS Lambda (Python 3.11)
+   |
+   |  (BigQuery insert)
+   v
+Google BigQuery
+```
+
+---
+
+## 🧠 Key Design Decisions
+
+* `jsonPayload` in BigQuery is a **RECORD**
+* Dynamic JSON is wrapped under a **fixed sub-field**
+* Prevents schema errors when payload changes
+* Matches Google Cloud Logging semantics
+
+---
+
+## 🧾 BigQuery Table Schema (Required)
+
+```text
+severity            STRING
+logName             STRING
+resource            RECORD
+jsonPayload         RECORD
+  └── raw            STRING
+timestamp           TIMESTAMP
+receiveTimestamp    TIMESTAMP
+textPayload         STRING
+```
+
+> ⚠️ `jsonPayload.raw` stores the full JSON as a string
+
+---
+
+## 🔐 Step 1: Create GCP Service Account
+
+### 1. Create service account
+
+```bash
+gcloud iam service-accounts create bq-writer \
+  --display-name "BigQuery Writer"
+```
+
+### 2. Grant permissions
+
+```bash
+gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> \
+  --member="serviceAccount:bq-writer@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/bigquery.dataEditor"
+```
+
+```bash
+gcloud projects add-iam-policy-binding <GCP_PROJECT_ID> \
+  --member="serviceAccount:bq-writer@<GCP_PROJECT_ID>.iam.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"
+```
+
+### 3. Create key
+
+```bash
+gcloud iam service-accounts keys create sa-key.json \
+  --iam-account=bq-writer@<GCP_PROJECT_ID>.iam.gserviceaccount.com
+```
+
+---
+
+## 🔐 Step 2: Prepare Key for AWS Lambda
+
+### Base64 encode the key
+
+```bash
+base64 sa-key.json > gcp_sa_key.base64
+```
+
+### Add Lambda environment variable
+
+```
+GCP_SA_KEY_BASE64=<contents of gcp_sa_key.base64>
+```
+
+---
+
+## 🐍 Step 3: Create Lambda Layer (Python 3.11)
+
+### Use AWS Lambda base image (IMPORTANT)
+
+```bash
+docker run --rm -it \
+  -v "$PWD":/var/task \
+  public.ecr.aws/lambda/python:3.11 \
+  bash
+```
+
+### Inside container
+
+```bash
+mkdir -p python
+pip install google-cloud-bigquery -t python
+zip -r gcp-bigquery-layer.zip python
+```
+
+### Publish layer
+
+```bash
+aws lambda publish-layer-version \
+  --layer-name gcp-bigquery-layer \
+  --zip-file fileb://gcp-bigquery-layer.zip \
+  --compatible-runtimes python3.11
+```
+
+Attach this layer to your Lambda.
+
+---
+
+## ☕ Step 4: Java (Spring Boot) – Sending to SQS
+
+### Java sends JSON wrapped under `raw`
+
+```java
+Map<String, Object> wrappedPayload = new HashMap<>();
+wrappedPayload.put("raw", objectMapper.writeValueAsString(jsonMap));
+
+queueMessage.put("jsonPayload", wrappedPayload);
+```
+
+This ensures compatibility with BigQuery `RECORD`.
+
+---
+
+## 🧠 Step 5: AWS Lambda Function (FINAL)
+
+```python
+import json
+import base64
+import os
+from datetime import datetime, timezone
+
+from google.cloud import bigquery
+from google.oauth2 import service_account
+
+
+def get_bq_client():
+    sa_info = json.loads(
+        base64.b64decode(os.environ["GCP_SA_KEY_BASE64"]).decode("utf-8")
+    )
+    credentials = service_account.Credentials.from_service_account_info(sa_info)
+    return bigquery.Client(credentials=credentials)
+
+
+def lambda_handler(event, context):
+    client = get_bq_client()
+    rows_by_table = {}
+
+    for record in event["Records"]:
+        body = json.loads(record["body"])
+
+        full_table_id = (
+            f"{body['project_id']}."
+            f"{body['dataset_id']}."
+            f"{body['table_id']}"
+        )
+
+        row = {
+            "severity": body.get("severity"),
+            "logName": body.get("logName"),
+            "resource": body.get("resource"),
+
+            # Wrapped RECORD from Java
+            "jsonPayload": body.get("jsonPayload"),
+
+            "timestamp": body.get("timestamp"),
+            "receiveTimestamp": datetime.now(timezone.utc).isoformat(),
+            "textPayload": None
+        }
+
+        rows_by_table.setdefault(full_table_id, []).append(row)
+
+    for table, rows in rows_by_table.items():
+        errors = client.insert_rows_json(table, rows)
+        if errors:
+            print(f"BigQuery insert errors for {table}: {errors}")
+            raise Exception("BigQuery insert failed")
+
+    return {
+        "statusCode": 200,
+        "rows_inserted": sum(len(v) for v in rows_by_table.values())
+    }
+```
+
+---
+
+## 🔍 Querying in BigQuery
+
+```sql
+SELECT
+  JSON_VALUE(jsonPayload.raw, '$.account_slug') AS account,
+  JSON_VALUE(jsonPayload.raw, '$.vendorOrderNumber') AS order_no,
+  timestamp
+FROM `project.dataset.inventory_updates`
+ORDER BY timestamp DESC;
+```
+
+---
+
+## 🚨 Common Errors & Fixes
+
+| Error                             | Cause                    | Fix                   |
+| --------------------------------- | ------------------------ | --------------------- |
+| `Cannot convert string to record` | Sending STRING to RECORD | Wrap JSON under `raw` |
+| `No module google.protobuf`       | Wrong Lambda build env   | Use Lambda base image |
+| `KeyError GCP_SA_KEY_BASE64`      | Missing env var          | Add to Lambda         |
+| Schema breaks                     | Dynamic JSON             | Use `raw STRING`      |
+
+---
+
+## ✅ Final Status
+
+✔ Java → SQS working
+✔ Lambda authentication working
+✔ Lambda layer correct
+✔ BigQuery inserts stable
+✔ Schema future-proof
+
+---
+
+## 🏁 Conclusion
+
+This setup is **production-grade**, **schema-safe**, and **cloud-native**.
+
+You now have:
+
+* Zero schema churn
+* Safe cross-cloud logging
+* Full JSON preserved
+* Easy querying
