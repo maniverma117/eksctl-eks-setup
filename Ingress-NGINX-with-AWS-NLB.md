@@ -80,8 +80,8 @@ controller:
       service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "300"
       service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:ap-south-1:989064034245:certificate/c6ee4c85-bad3-4399-b06d-9b3b3f1fea31"
       service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
-      service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-0ae16a7a1fe949602,subnet-0fc0a16eecc882171"
-      service.beta.kubernetes.io/aws-load-balancer-name: "eshopbox-nlb-prod"
+      service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-0ae16a7axxxx1fe949602,subnet-0fc0a16eecxxxxxc882171"
+      service.beta.kubernetes.io/aws-load-balancer-name: "xxxxxxxxxxxx"
 
     enableHttp: true
     enableHttps: true
