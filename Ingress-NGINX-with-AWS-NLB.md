@@ -14,8 +14,11 @@
 helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
 helm repo update
 helm pull ingress-nginx/ingress-nginx --untar
+helm upgrade --install  mynginc-ctl -f ingress-nginx/my-value.yaml ingress-nginx/  -n ingress-nginx 
+
 ```
-## vim my-value.yaml
+
+## my-value.yaml
 ```
 global:
   image:
