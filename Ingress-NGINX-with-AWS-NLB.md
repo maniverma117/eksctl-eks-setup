@@ -473,13 +473,13 @@ metrics:
 ## 🧪 Final Expected Behavior
 
 ```bash
-curl -I http://scheduler.eshpbx.com
+curl -I http://app.abcd.com
 ```
 
 ➡️ `308 Permanent Redirect`
 
 ```bash
-curl -I https://scheduler.eshpbx.com
+curl -I https://app.abcd.com
 ```
 
 ➡️ `200 OK`
