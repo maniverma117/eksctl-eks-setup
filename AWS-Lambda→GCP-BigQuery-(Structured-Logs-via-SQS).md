@@ -162,6 +162,10 @@ from google.oauth2 import service_account
 
 
 def get_bq_client():
+    """
+    Create BigQuery client using service account JSON
+    stored as base64 in Lambda environment variable.
+    """
     sa_info = json.loads(
         base64.b64decode(os.environ["GCP_SA_KEY_BASE64"]).decode("utf-8")
     )
@@ -176,27 +180,32 @@ def lambda_handler(event, context):
     for record in event["Records"]:
         body = json.loads(record["body"])
 
-        full_table_id = (
-            f"{body['project_id']}."
-            f"{body['dataset_id']}."
-            f"{body['table_id']}"
-        )
+        # Target BigQuery table (dynamic)
+        project_id = body["project_id"]
+        dataset_id = body["dataset_id"]
+        table_id = body["table_id"]
 
+        full_table_id = f"{project_id}.{dataset_id}.{table_id}"
+
+        # Build BigQuery row (MATCHES SCHEMA)
         row = {
             "severity": body.get("severity"),
             "logName": body.get("logName"),
             "resource": body.get("resource"),
 
-            # Wrapped RECORD from Java
+            # jsonPayload as sent by Java (raw/requestdata/responsedata as strings)
             "jsonPayload": body.get("jsonPayload"),
 
             "timestamp": body.get("timestamp"),
             "receiveTimestamp": datetime.now(timezone.utc).isoformat(),
+
+            # No insertId for now
             "textPayload": None
         }
 
         rows_by_table.setdefault(full_table_id, []).append(row)
 
+    # Insert rows per table
     for table, rows in rows_by_table.items():
         errors = client.insert_rows_json(table, rows)
         if errors:
