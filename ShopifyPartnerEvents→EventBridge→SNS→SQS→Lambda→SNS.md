@@ -133,10 +133,27 @@ import boto3
 
 sns = boto3.client("sns")
 
-TARGET_TOPIC_ARN = (
-    "arn:aws:sns:ap-south-1:989064034245:"
-    "shopify-integration-staging-topics-shopify-webhook-orders"
-)
+ORDERS_TOPIC_ARN = "arn:aws:sns:ap-south-1:989064034245:shopify-integration-staging-topics-shopify-webhook-orders"
+PRODUCTS_TOPIC_ARN = "arn:aws:sns:ap-south-1:989064034245:shopify-integration-staging-topics-shopify-webhook-products"
+
+
+def resolve_target_topic(shopify_topic: str) -> str | None:
+    """
+    Decide SNS topic based on X-Shopify-Topic header
+    """
+    if not shopify_topic:
+        return None
+
+    topic = shopify_topic.lower()
+
+    if topic.startswith("products/"):
+        return PRODUCTS_TOPIC_ARN
+
+    if topic.startswith("orders/"):
+        return ORDERS_TOPIC_ARN
+
+    return None
+
 
 def lambda_handler(event, context):
     print("Incoming event:", json.dumps(event))
@@ -169,7 +186,15 @@ def lambda_handler(event, context):
             print("No payload found, skipping")
             continue
 
-        # 4. Convert metadata → SNS MessageAttributes
+        # 4. Resolve Shopify topic
+        shopify_topic = metadata.get("X-Shopify-Topic")
+        target_topic_arn = resolve_target_topic(shopify_topic)
+
+        if not target_topic_arn:
+            print(f"Unsupported Shopify topic: {shopify_topic}, skipping")
+            continue
+
+        # 5. Convert metadata → MessageAttributes
         message_attributes = {}
         for key, value in metadata.items():
             if value is None:
@@ -179,9 +204,12 @@ def lambda_handler(event, context):
                 "StringValue": str(value)
             }
 
-        # 5. Publish to target SNS topic
+        print("Publishing to:", target_topic_arn)
+        print("Shopify topic:", shopify_topic)
+
+        # 6. Publish to SNS
         response = sns.publish(
-            TopicArn=TARGET_TOPIC_ARN,
+            TopicArn=target_topic_arn,
             Message=json.dumps(payload),
             MessageAttributes=message_attributes
         )
