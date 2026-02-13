@@ -153,68 +153,103 @@ This ensures compatibility with BigQuery `RECORD`.
 
 ```python
 import json
-import base64
-import os
+import boto3
 from datetime import datetime, timezone
-
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
+# ---- CONFIG ----
+SECRET_NAME = "gcp-sa-key"
+REGION = "ap-south-1"
 
+# cache for warm lambda
+_cached_credentials = None
+_cached_project = None
+_bq_client = None
+
+
+# ---------- SECRETS MANAGER ----------
+def load_gcp_credentials():
+    global _cached_credentials, _cached_project
+
+    if _cached_credentials:
+        return _cached_credentials, _cached_project
+
+    sm = boto3.client("secretsmanager", region_name=REGION)
+    response = sm.get_secret_value(SecretId=SECRET_NAME)
+
+    secret = json.loads(response["SecretString"])
+
+    # Fix private key newlines
+    secret["private_key"] = secret["private_key"].replace("\\n", "\n")
+
+    credentials = service_account.Credentials.from_service_account_info(secret)
+
+    _cached_credentials = credentials
+    _cached_project = secret["project_id"]
+
+    return credentials, _cached_project
+
+
+# ---------- BIGQUERY CLIENT ----------
 def get_bq_client():
-    """
-    Create BigQuery client using service account JSON
-    stored as base64 in Lambda environment variable.
-    """
-    sa_info = json.loads(
-        base64.b64decode(os.environ["GCP_SA_KEY_BASE64"]).decode("utf-8")
+    global _bq_client
+
+    if _bq_client:
+        return _bq_client
+
+    credentials, project = load_gcp_credentials()
+
+    _bq_client = bigquery.Client(
+        credentials=credentials,
+        project=project,
     )
-    credentials = service_account.Credentials.from_service_account_info(sa_info)
-    return bigquery.Client(credentials=credentials)
+
+    return _bq_client
 
 
+# ---------- HANDLER ----------
 def lambda_handler(event, context):
     client = get_bq_client()
+
     rows_by_table = {}
 
     for record in event["Records"]:
         body = json.loads(record["body"])
 
-        # Target BigQuery table (dynamic)
+        # Dynamic table
         project_id = body["project_id"]
         dataset_id = body["dataset_id"]
         table_id = body["table_id"]
-
         full_table_id = f"{project_id}.{dataset_id}.{table_id}"
 
-        # Build BigQuery row (MATCHES SCHEMA)
+        # Row schema
         row = {
             "severity": body.get("severity"),
             "logName": body.get("logName"),
             "resource": body.get("resource"),
-
-            # jsonPayload as sent by Java (raw/requestdata/responsedata as strings)
             "jsonPayload": body.get("jsonPayload"),
-
             "timestamp": body.get("timestamp"),
             "receiveTimestamp": datetime.now(timezone.utc).isoformat(),
-
-            # No insertId for now
             "textPayload": None
         }
 
         rows_by_table.setdefault(full_table_id, []).append(row)
 
-    # Insert rows per table
+    # Insert rows
+    total = 0
     for table, rows in rows_by_table.items():
         errors = client.insert_rows_json(table, rows)
+
         if errors:
             print(f"BigQuery insert errors for {table}: {errors}")
             raise Exception("BigQuery insert failed")
 
+        total += len(rows)
+
     return {
         "statusCode": 200,
-        "rows_inserted": sum(len(v) for v in rows_by_table.values())
+        "rows_inserted": total
     }
 ```
 
