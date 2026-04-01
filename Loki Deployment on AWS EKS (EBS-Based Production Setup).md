@@ -61,10 +61,10 @@ Create `loki-values.yaml`:
 
 ```bash
 cat << EOF > loki-values.yaml
+deploymentMode: SingleBinary
+
 loki:
   auth_enabled: false
-
-  deploymentMode: SingleBinary   # 🔥 critical
 
   commonConfig:
     replication_factor: 1
@@ -86,7 +86,7 @@ loki:
     boltdb_shipper:
       active_index_directory: /var/loki/index
       cache_location: /var/loki/cache
-      shared_store: filesystem
+        #shared_store: filesystem
 
     filesystem:
       directory: /var/loki/chunks
@@ -94,28 +94,24 @@ loki:
   compactor:
     working_directory: /var/loki/compactor
     retention_enabled: true
+    delete_request_store: filesystem
 
   limits_config:
-    retention_period: 672h
+    retention_period: 720h   # 🔥 30 days
+    allow_structured_metadata: false
+
+# 🔥 SingleBinary (THIS is where persistence goes)
+singleBinary:
+  replicas: 1
 
   persistence:
     enabled: true
-    storageClassName: ebs-sc
+    storageClass: ebs-sc     # 🔥 IMPORTANT (NOT storageClassName)
     accessModes:
       - ReadWriteOnce
-    size: 250Gi
+    size: 300Gi
 
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: role
-                operator: In
-                values:
-                  - monitoring
-
-# 🔥 VERY IMPORTANT (disable distributed components)
+# ❌ Disable distributed components
 backend:
   replicas: 0
 
@@ -125,24 +121,35 @@ read:
 write:
   replicas: 0
 
-# Also ensure these are disabled
-singleBinary:
-  replicas: 1
-
-# disable gateway if enabled
-gateway:
-  enabled: false
-
-# disable promtail
-promtail:
-  enabled: false
-
+# ❌ Disable extras
 lokiCanary:
   enabled: false
 
-
 test:
   enabled: false
+
+gateway:
+  enabled: false
+
+chunksCache:
+  enabled: false
+
+resultsCache:
+  enabled: false
+
+promtail:
+  enabled: false
+
+# 🔥 Affinity
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: role
+              operator: In
+              values:
+                - monitoring
 EOF
 ```
 
