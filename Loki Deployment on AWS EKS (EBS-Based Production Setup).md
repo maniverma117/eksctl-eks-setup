@@ -365,10 +365,5 @@ You can extend this setup with:
 * OpenTelemetry Collector → unified pipeline
 * Prometheus → metrics
 
----
 
-If you want, next I can create:
 
-👉 Tempo README (same level)
-👉 OTel Collector README (with pipelines)
-👉 Full “observability stack repo structure” (very useful for your project)
