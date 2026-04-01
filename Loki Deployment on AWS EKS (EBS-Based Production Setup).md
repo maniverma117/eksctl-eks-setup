@@ -64,8 +64,13 @@ cat << EOF > loki-values.yaml
 loki:
   auth_enabled: false
 
+  deploymentMode: SingleBinary   # 🔥 critical
+
   commonConfig:
     replication_factor: 1
+
+  storage:
+    type: filesystem
 
   schemaConfig:
     configs:
@@ -108,23 +113,29 @@ loki:
               - key: role
                 operator: In
                 values:
-                  - Prd-Monitoring-NG-1
+                  - monitoring
 
+# 🔥 VERY IMPORTANT (disable distributed components)
+backend:
+  replicas: 0
+
+read:
+  replicas: 0
+
+write:
+  replicas: 0
+
+# Also ensure these are disabled
+singleBinary:
+  replicas: 1
+
+# disable gateway if enabled
+gateway:
+  enabled: false
+
+# disable promtail
 promtail:
-  enabled: true
-  config:
-    clients:
-      - url: http://loki:3100/loki/api/v1/push
-
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: role
-                operator: In
-                values:
-                  - Prd-Monitoring-NG-1
+  enabled: false
 EOF
 ```
 
