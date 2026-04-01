@@ -157,18 +157,22 @@ Create ServiceMonitor:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
+  labels:
+    release: prometheus
   name: otel-collector
   namespace: monitoring
 spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: opentelemetry-collector
+  endpoints:
+  - interval: 15s
+    port: metrics
   namespaceSelector:
     matchNames:
-      - monitoring
-  endpoints:
-    - port: metrics
-      interval: 15s
+    - monitoring
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: otel-collector
+      app.kubernetes.io/name: opentelemetry-collector
+      component: standalone-collector
 ```
 
 ---
