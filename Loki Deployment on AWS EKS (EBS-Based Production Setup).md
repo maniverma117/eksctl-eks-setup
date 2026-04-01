@@ -136,6 +136,13 @@ gateway:
 # disable promtail
 promtail:
   enabled: false
+
+lokiCanary:
+  enabled: false
+
+
+test:
+  enabled: false
 EOF
 ```
 
