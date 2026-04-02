@@ -369,7 +369,33 @@ java -javaagent:opentelemetry-javaagent.jar \
   -Dotel.instrumentation.logback-appender.enabled=true \
   -jar app.jar
 ```
+## 2. Run Application with OTel
 
+```bash
+        - name: OTEL_INSTRUMENTATION_LOGBACK_MDC_ENABLED
+          value: "true"
+        - name: OTEL_LOGS_EXPORTER
+          value: otlp
+        - name: OTEL_LOG_LEVEL
+          value: debug
+        - name: OTEL_JAVAAGENT_ENABLED
+          value: "true"
+        - name: OTEL_SERVICE_NAME
+          value: app1
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://otel-collector-opentelemetry-collector.monitoring.svc.cluster.local:4317
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
+        - name: OTEL_TRACES_EXPORTER
+          value: otlp
+        - name: OTEL_METRICS_EXPORTER
+          value: otlp
+        - name: OTEL_INSTRUMENTATION_LOGBACK_APPENDER_ENABLED
+          value: "true"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: deployment.environment=dev,service.version=1.0
+
+```
 ---
 
 # 🔥 What This Enables
