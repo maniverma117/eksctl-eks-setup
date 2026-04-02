@@ -369,7 +369,7 @@ java -javaagent:opentelemetry-javaagent.jar \
   -Dotel.instrumentation.logback-appender.enabled=true \
   -jar app.jar
 ```
-## 2. Run Application with OTel
+##  K8S config map
 
 ```bash
         - name: OTEL_INSTRUMENTATION_LOGBACK_MDC_ENABLED
