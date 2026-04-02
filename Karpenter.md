@@ -300,6 +300,20 @@ helm install karpenter oci://public.ecr.aws/karpenter/karpenter \
   --set controller.resources.requests.memory=1Gi \
   --set controller.resources.limits.cpu=1 \
   --set controller.resources.limits.memory=1Gi
+
+
+
+helm install karpenter oci://public.ecr.aws/karpenter/karpenter \
+--version "1.4.0" \
+--namespace "kube-system" \
+--set "settings.clusterName=staging-eshopbox" \
+--set "settings.interruptionQueue=staging-eshopbox" \
+--set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::989064034245:role/KarpenterControllerRole-staging-eshopbox" \
+--set controller.resources.requests.cpu=1 \
+--set controller.resources.requests.memory=1Gi \
+--set controller.resources.limits.cpu=1 \
+--set controller.resources.limits.memory=1Gi
+
 ```
 
 ---
@@ -310,41 +324,66 @@ Example for ARM-based (Graviton) workloads:
 
 ```yaml
 # NodePool to launch Graviton (arm64) instances
-https://github.com/aws/karpenter-provider-aws/blob/main/examples/v1/general-purpose.yaml
-
-https://github.com/aws/karpenter-provider-aws/tree/main/examples/v1
+# Source: https://github.com/aws/karpenter-provider-aws/blob/main/examples/v1/general-purpose.yaml
+#         https://github.com/aws/karpenter-provider-aws/tree/main/examples/v1
 ---
+
 apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: general-purpose-arm
-  annotations:
-    kubernetes.io/description: "Graviton NodePool for ARM-based workloads"
 spec:
+  limits:
+    cpu: "8"
+    memory: "16Gi"
+
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 2m
+
   template:
+    metadata:
+      labels:
+        role: general
+        arch: arm64
+
     spec:
       requirements:
         - key: kubernetes.io/arch
           operator: In
-          values: ["arm64"]  # ✅ ARM architecture
+          values: ["arm64"]
+
         - key: kubernetes.io/os
           operator: In
           values: ["linux"]
+
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
+
         - key: karpenter.k8s.aws/instance-category
           operator: In
-          values: ["c", "m", "r"]  # Includes Graviton families like c7g, m7g, r7g
+          values: ["m", "r"]
+
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
-          values: ["6"]  # Graviton2 (generation 6) or higher
+          values: ["6"]
+
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: ["2"]
+
+        - key: karpenter.k8s.aws/instance-memory
+          operator: In
+          values: ["8192"]
+
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: graviton-default
----
-# EC2NodeClass for Graviton (Amazon Linux 2023)
+
+
+--- 
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
@@ -352,16 +391,17 @@ metadata:
   annotations:
     kubernetes.io/description: "Graviton EC2NodeClass for ARM-based Amazon Linux 2023 nodes"
 spec:
-  role: "KarpenterNodeRolexxxxxxxxxxxxxxx"  # Replace with your karpenter node role
+  role: "KarpenterNodeRole-staging-eshopbox"
   subnetSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "Non-Prod-velocis"  # Replace with your cluster name
+        karpenter.sh/discovery: "staging-eshopbox"
   securityGroupSelectorTerms:
     - tags:
-        karpenter.sh/discovery: "Non-Prod-velocis"  # Replace with your cluster name
+        karpenter.sh/discovery: "staging-eshopbox"
   amiSelectorTerms:
-    - id: ami-02f67279123ee4a30  # Amazon Linux 2023 (supports arm64 & x86_64)
+    - id: ami-08a69e09364147498
   amiFamily: AL2023
+  
 ```
 
 Apply the NodePool:
