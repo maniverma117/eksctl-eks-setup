@@ -299,7 +299,7 @@ data:
           k8s.node.ip: ${env:OTEL_K8S_NODE_IP}
           k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
           k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
-          k8s.pod.name: ${env:OTEL_K8S_POD_NAME}:
+          k8s.pod.name: ${env:OTEL_K8S_POD_NAME}
 
 ```
 ---
