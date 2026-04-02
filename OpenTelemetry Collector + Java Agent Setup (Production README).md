@@ -92,8 +92,24 @@ config:
   receivers:
     otlp:
       protocols:
-        grpc:
-        http:
+        grpc: {}
+        http: {}
+
+    jaeger:
+      protocols:
+        grpc: {}
+        thrift_compact: {}
+        thrift_http: {}
+
+    zipkin: {}
+
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: otel-collector
+            scrape_interval: 10s
+            static_configs:
+              - targets: ["${env:MY_POD_IP}:8888"]
 
   processors:
     memory_limiter:
@@ -101,39 +117,191 @@ config:
       spike_limit_mib: 128
       check_interval: 5s
     batch:
+      send_batch_size: 1000
+      timeout: 10s
 
   exporters:
     prometheus:
       endpoint: "0.0.0.0:8889"
-
-    loki:
-      endpoint: http://loki:3100/loki/api/v1/push
 
     otlp/tempo:
       endpoint: tempo:4317
       tls:
         insecure: true
 
-  service:
-    pipelines:
-      metrics:
-        receivers: [otlp]
-        processors: [memory_limiter, batch]
-        exporters: [prometheus]
+    otlphttp/loki:
+      endpoint: http://loki:3100/loki/api/v1/push
+      tls:
+        insecure: true
 
+    debug: {}
+
+  connectors:
+    servicegraph: {}
+
+  extensions:
+    health_check:
+      endpoint: ${env:MY_POD_IP}:13133
+
+  service:
+    extensions: [health_check]
+
+    pipelines:
       logs:
         receivers: [otlp]
         processors: [memory_limiter, batch]
-        exporters: [loki]
+        exporters: [otlphttp/loki]
+
+      metrics:
+        receivers: [otlp, servicegraph]
+        processors: [memory_limiter, batch]
+        exporters: [prometheus]
 
       traces:
         receivers: [otlp]
         processors: [memory_limiter, batch]
-        exporters: [otlp/tempo]
+        exporters: [otlp/tempo, servicegraph]
 
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: ${env:MY_POD_IP}
+                port: 8888
+
+    resource:
+      host.name: ${env:OTEL_K8S_NODE_NAME}
+      k8s.namespace.name: ${env:OTEL_K8S_NAMESPACE}
+      k8s.node.ip: ${env:OTEL_K8S_NODE_IP}
+      k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
+      k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
+      k8s.pod.name: ${env:OTEL_K8S_POD_NAME}
 EOF
 ```
 
+## 2. confimap
+
+```bash
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: otel-collector
+    meta.helm.sh/release-namespace: monitoring
+  labels:
+    app.kubernetes.io/component: standalone-collector
+    app.kubernetes.io/instance: otel-collector
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: opentelemetry-collector
+    app.kubernetes.io/part-of: opentelemetry-collector
+    app.kubernetes.io/version: 0.147.0
+    helm.sh/chart: opentelemetry-collector-0.147.1
+  name: otel-collector-opentelemetry-collector
+  namespace: monitoring
+data:
+  relay: |
+    exporters:
+      debug: {}
+      otlp/tempo:
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://loki:3100/loki/api/v1/push
+        tls:
+          insecure: true
+      prometheus:
+        endpoint: 0.0.0.0:8889
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+    connectors:
+      servicegraph: {}
+    processors:
+      batch:
+        send_batch_size: 1000
+        timeout: 10s
+      memory_limiter:
+        check_interval: 5s
+        limit_mib: 512
+        limit_percentage: 80
+        spike_limit_mib: 128
+        spike_limit_percentage: 25
+    receivers:
+      jaeger:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:14250
+          thrift_compact:
+            endpoint: ${env:MY_POD_IP}:6831
+          thrift_http:
+            endpoint: ${env:MY_POD_IP}:14268
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            endpoint: ${env:MY_POD_IP}:4318
+      prometheus:
+        config:
+          scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+            - targets:
+              - ${env:MY_POD_IP}:8888
+      zipkin:
+        endpoint: ${env:MY_POD_IP}:9411
+    service:
+      extensions:
+      - health_check
+      pipelines:
+        logs:
+          exporters:
+          - otlphttp/loki
+          processors:
+          - memory_limiter
+          - batch
+          receivers:
+          - otlp
+        metrics:
+          exporters:
+          - prometheus
+          processors:
+          - memory_limiter
+          - batch
+          receivers:
+          - servicegraph
+          - otlp
+        traces:
+          exporters:
+          - otlp/tempo
+          - servicegraph
+          processors:
+          - memory_limiter
+          - batch
+          receivers:
+          - otlp
+      telemetry:
+        metrics:
+          readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
+        resource:
+          host.name: ${env:OTEL_K8S_NODE_NAME}
+          k8s.namespace.name: ${env:OTEL_K8S_NAMESPACE}
+          k8s.node.ip: ${env:OTEL_K8S_NODE_IP}
+          k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
+          k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
+          k8s.pod.name: ${env:OTEL_K8S_POD_NAME}:
+
+```
 ---
 
 ## 3. Deploy Collector
