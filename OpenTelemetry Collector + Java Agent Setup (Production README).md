@@ -220,6 +220,12 @@ data:
         endpoint: ${env:MY_POD_IP}:13133
     connectors:
       servicegraph: {}
+      spanmetrics:
+        namespace: traces_spanmetrics
+        dimensions:
+          - name: http.method
+          - name: http.route
+          - name: http.status_code
     processors:
       batch:
         send_batch_size: 1000
@@ -276,10 +282,12 @@ data:
           receivers:
           - servicegraph
           - otlp
+          - spanmetrics
         traces:
           exporters:
           - otlp/tempo
           - servicegraph
+          - spanmetrics
           processors:
           - memory_limiter
           - batch
@@ -300,6 +308,7 @@ data:
           k8s.node.name: ${env:OTEL_K8S_NODE_NAME}
           k8s.pod.ip: ${env:OTEL_K8S_POD_IP}
           k8s.pod.name: ${env:OTEL_K8S_POD_NAME}
+
 
 ```
 ---
@@ -372,6 +381,18 @@ java -javaagent:opentelemetry-javaagent.jar \
 ##  K8S config map
 
 ```bash
+        - name: OTEL_SEMCONV_STABILITY_OPT_IN
+          value: http/dup
+        - name: OTEL_INSTRUMENTATION_SERVLET_ENABLED
+          value: "true"
+        - name: OTEL_INSTRUMENTATION_TOMCAT_ENABLED
+          value: "true"
+        - name: OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST
+          value: '*'
+        - name: OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_RESPONSE
+          value: '*'
+        - name: OTEL_INSTRUMENTATION_HTTP_SERVER_ENABLED
+          value: "true"
         - name: OTEL_INSTRUMENTATION_LOGBACK_MDC_ENABLED
           value: "true"
         - name: OTEL_LOGS_EXPORTER
@@ -394,7 +415,6 @@ java -javaagent:opentelemetry-javaagent.jar \
           value: "true"
         - name: OTEL_RESOURCE_ATTRIBUTES
           value: deployment.environment=dev,service.version=1.0
-
 ```
 ---
 
