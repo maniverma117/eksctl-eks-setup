@@ -1,7 +1,3 @@
-Got it 👍 — here’s a **clean, production-ready README** you can share with all your developers so every service emits the right metrics for your Grafana dashboard + Tempo correlation.
-
----
-
 # 📊 Observability Setup Guide (Spring Boot + Micrometer + Prometheus + Tempo)
 
 This guide explains how to enable **URI-level metrics**, **latency histograms**, and **trace correlation** for all services.
@@ -290,10 +286,3 @@ Tempo (Traces)
 After setup, your service is fully observable and production-ready.
 
 ---
-
-If you want, I can also give:
-
-👉 **one standard Helm template** for all services
-👉 or **auto-injection approach (no code change for devs)**
-
-Just tell me 👍
