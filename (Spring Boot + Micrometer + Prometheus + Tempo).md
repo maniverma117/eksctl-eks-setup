@@ -187,20 +187,29 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: app1
-  namespace: monitoring
+  annotations:
+    meta.helm.sh/release-name: esb-shopify-integration-stg
+    meta.helm.sh/release-namespace: stg
   labels:
-    release: prometheus   # MUST match Prometheus
+    app.kubernetes.io/managed-by: Helm
+    release: prometheus
+  name: esb-shopify-integration-stg-eshopbox
+  namespace: stg
 spec:
+  endpoints:
+  - interval: 30s
+    path: /actuator/prometheus
+    port: http
+  namespaceSelector:
+    matchNames:
+    - stg
   selector:
     matchLabels:
-      app: app1
-  namespaceSelector:
-    any: true
-  endpoints:
-    - port: http
-      path: /actuator/prometheus
-      interval: 30s
+      application: esb-shopify-integration-stg
+      helm.sh/chart: eshopbox-0.1.0
+      managed-by: Velocis
+      project: eshopbox
+      version: 1.16.0
 ```
 
 ---
