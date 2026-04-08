@@ -61,29 +61,32 @@ Every service should provide:
 Add the following to `application.properties`:
 
 ```properties
-spring.application.name=app1
+spring.application.name=app2
+logging.pattern.level=%5p [trace_id=%X{trace_id} span_id=%X{span_id}]
 
-# Expose actuator endpoints
+# Enable actuator endpoints
 management.endpoints.web.exposure.include=prometheus,health,info
 
-# Enable Prometheus
+# Enable prometheus endpoint
 management.endpoint.prometheus.enabled=true
+
+# Enable metrics
 management.metrics.export.prometheus.enabled=true
 
-# Enable histogram (VERY IMPORTANT for latency)
+# IMPORTANT: Enable histogram (for latency, p95, etc.)
 management.metrics.distribution.percentiles-histogram.http.server.requests=true
 
-# Optional percentiles
+# Optional but recommended (better visibility)
 management.metrics.distribution.percentiles.http.server.requests=0.5,0.9,0.95,0.99
 
-# Add service tag
+# Add common tag (helps in Grafana filtering)
 management.metrics.tags.application=app1
 
-# Enable auto timing
+# Ensure all HTTP requests are timed
 management.metrics.web.server.request.autotime.enabled=true
 
-# Handle trailing slash
 management.metrics.web.server.request.ignore-trailing-slash=true
+
 ```
 
 ---
